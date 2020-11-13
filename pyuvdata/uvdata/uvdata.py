@@ -1522,6 +1522,7 @@ class UVData(UVBase):
         run_check_acceptability=True,
         check_freq_spacing=False,
         strict_uvw_antpos_check=False,
+        use_astropy=False,
     ):
         """
         Add some extra checks on top of checks on UVBase class.
@@ -1625,7 +1626,9 @@ class UVData(UVBase):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 temp_obj.set_uvws_from_antenna_positions(
-                    allow_phasing=True, output_phase_frame=output_phase_frame
+                    allow_phasing=True,
+                    output_phase_frame=output_phase_frame,
+                    use_astropy=use_astropy,
                 )
 
             if not np.allclose(temp_obj.uvw_array, self.uvw_array, atol=1):
@@ -4180,6 +4183,7 @@ class UVData(UVBase):
         # Basically, the only time we need to use the 'old' phase method is if we are
         # working with a 'phased' data set, where the apparent coordinates have not
         # been calculated.
+        print(use_astropy)
         if auto_select_phase and use_old_phase is None:
             use_old_phase = (self.phase_type == "phased") and (
                 self.phase_center_app_ra is None or self.phase_center_app_dec is None
@@ -8408,6 +8412,7 @@ class UVData(UVBase):
         check_extra=True,
         run_check_acceptability=True,
         strict_uvw_antpos_check=False,
+        use_astropy=False,
     ):
         """
         Read in data from a measurement set.
@@ -8476,6 +8481,7 @@ class UVData(UVBase):
             check_extra=check_extra,
             run_check_acceptability=run_check_acceptability,
             strict_uvw_antpos_check=strict_uvw_antpos_check,
+            use_astropy=use_astropy,
         )
         self._convert_from_filetype(ms_obj)
         del ms_obj
@@ -9788,6 +9794,7 @@ class UVData(UVBase):
                     check_extra=check_extra,
                     run_check_acceptability=run_check_acceptability,
                     strict_uvw_antpos_check=strict_uvw_antpos_check,
+                    use_astropy=use_astropy,
                 )
 
             elif file_type == "uvh5":
