@@ -1067,8 +1067,8 @@ def test_phasing(future_shapes):
     file2 = os.path.join(DATA_PATH, "1133866760_rephase.uvfits")
     uvd1 = UVData()
     uvd2 = UVData()
-    uvd1.read_uvfits(file1, use_astropy=True)
-    uvd2.read_uvfits(file2, use_astropy=True)
+    uvd1.read_uvfits(file1)
+    uvd2.read_uvfits(file2)
 
     if future_shapes:
         uvd1.use_future_array_shapes()
@@ -7941,9 +7941,7 @@ def test_downsample_in_time_nsample_precision(hera_uvh5):
 def test_downsample_in_time_errors(hera_uvh5):
     """Test various errors and warnings are raised"""
     uv_object = hera_uvh5
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True,
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
 
@@ -8077,9 +8075,7 @@ def test_downsample_in_time_varying_integration_time(hera_uvh5):
     within a baseline
     """
     uv_object = hera_uvh5
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
 
@@ -8102,9 +8098,7 @@ def test_downsample_in_time_varying_integration_time(hera_uvh5):
     # check that there are no warnings about inconsistencies between
     # integration_time & time_array
     with uvtest.check_warnings(None):
-        uv_object.downsample_in_time(
-            min_int_time=min_integration_time, use_astropy=True
-        )
+        uv_object.downsample_in_time(min_int_time=min_integration_time)
 
     # Should have all the new integration time
     # (for this file with 20 integrations and a factor of 2 downsampling)
@@ -8137,9 +8131,7 @@ def test_downsample_in_time_varying_int_time_partial_flags(hera_uvh5):
     within a baseline and partial flagging.
     """
     uv_object = hera_uvh5
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True,
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
 
@@ -8168,17 +8160,11 @@ def test_downsample_in_time_varying_int_time_partial_flags(hera_uvh5):
     uv_object2 = uv_object.copy()
 
     with uvtest.check_warnings(None):
-        uv_object.downsample_in_time(
-            min_int_time=4 * initial_int_time, use_astropy=True,
-        )
+        uv_object.downsample_in_time(min_int_time=4 * initial_int_time)
     with uvtest.check_warnings(None):
-        uv_object.downsample_in_time(
-            min_int_time=8 * initial_int_time, use_astropy=True,
-        )
+        uv_object.downsample_in_time(min_int_time=8 * initial_int_time)
     with uvtest.check_warnings(None):
-        uv_object2.downsample_in_time(
-            min_int_time=8 * initial_int_time, use_astropy=True,
-        )
+        uv_object2.downsample_in_time(min_int_time=8 * initial_int_time)
 
     assert uv_object.history != uv_object2.history
     uv_object2.history = uv_object.history
@@ -8193,9 +8179,7 @@ def test_downsample_in_time_varying_integration_time_warning(hera_uvh5):
     within a baseline, but without adjusting the time_array so there is a mismatch.
     """
     uv_object = hera_uvh5
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True,
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
 
@@ -8213,9 +8197,7 @@ def test_downsample_in_time_varying_integration_time_warning(hera_uvh5):
     with uvtest.check_warnings(
         UserWarning, "The time difference between integrations is different than",
     ):
-        uv_object.downsample_in_time(
-            min_int_time=min_integration_time, use_astropy=True,
-        )
+        uv_object.downsample_in_time(min_int_time=min_integration_time)
 
     # Should have all the new integration time
     # (for this file with 20 integrations and a factor of 2 downsampling)
@@ -8241,9 +8223,7 @@ def test_upsample_downsample_in_time(hera_uvh5):
     uv_object = hera_uvh5
 
     # Using astropy here (and elsewhere) to match previously calculated values
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True,
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
 
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
@@ -8269,14 +8249,12 @@ def test_upsample_downsample_in_time(hera_uvh5):
         UserWarning, "All values in the integration_time array are already longer"
     ):
         uv_object.upsample_in_time(
-            max_integration_time - small_number, blt_order="baseline", use_astropy=True,
+            max_integration_time - small_number, blt_order="baseline",
         )
     assert uv_object.Nblts == new_Nblts
 
     uv_object.downsample_in_time(
-        min_int_time=np.amin(uv_object2.integration_time),
-        blt_order="baseline",
-        use_astropy=True,
+        min_int_time=np.amin(uv_object2.integration_time), blt_order="baseline",
     )
 
     # increase tolerance on LST if iers.conf.auto_max_age is set to None, as we
@@ -8335,9 +8313,7 @@ def test_upsample_downsample_in_time_odd_resample(hera_uvh5, future_shapes):
     if future_shapes:
         uv_object.use_future_array_shapes()
 
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True,
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
 
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
@@ -8349,7 +8325,7 @@ def test_upsample_downsample_in_time_odd_resample(hera_uvh5, future_shapes):
     assert np.amax(uv_object.integration_time) <= max_integration_time
 
     uv_object.downsample_in_time(
-        np.amin(uv_object2.integration_time), blt_order="baseline", use_astropy=True,
+        np.amin(uv_object2.integration_time), blt_order="baseline",
     )
 
     # increase tolerance on LST if iers.conf.auto_max_age is set to None, as we
@@ -8384,9 +8360,7 @@ def test_upsample_downsample_in_time_metadata_only(hera_uvh5):
     uv_object.flag_array = None
     uv_object.nsample_array = None
 
-    uv_object.phase_to_time(
-        Time(uv_object.time_array[0], format="jd"), use_astropy=True,
-    )
+    uv_object.phase_to_time(Time(uv_object.time_array[0], format="jd"))
 
     # reorder to make sure we get the right value later
     uv_object.reorder_blts(order="baseline", minor_order="time")
@@ -8397,7 +8371,7 @@ def test_upsample_downsample_in_time_metadata_only(hera_uvh5):
     assert np.amax(uv_object.integration_time) <= max_integration_time
 
     uv_object.downsample_in_time(
-        np.amin(uv_object2.integration_time), blt_order="baseline", use_astropy=True,
+        np.amin(uv_object2.integration_time), blt_order="baseline",
     )
 
     # increase tolerance on LST if iers.conf.auto_max_age is set to None, as we
