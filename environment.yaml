@@ -10,7 +10,7 @@ dependencies:
   - numpy>=1.18
   - pre-commit
   - pypandoc
-  - python-casacore
+  - python-casacore>=2.2.0
   - pyyaml
   - scipy
   - setuptools_scm
