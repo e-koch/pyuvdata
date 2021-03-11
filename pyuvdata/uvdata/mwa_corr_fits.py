@@ -480,7 +480,25 @@ class MWACorrFITS(UVData):
                 self.flag_array[time_ind, :, file_nums_to_index[file_num], :] = False
         return
 
-    def self_van_vleck_crosses_cheby(
+    def _self_van_vleck_autos(self, auto_inds, pols):
+        # cut off small sigmas that will not converge
+        flag_arr = np.full(self.data_array.shape, False)
+        flag_arr[auto_inds[:, np.newaxis], :, pols] = (
+            self.data_array.real[auto_inds[:, np.newaxis], :, pols] > 0.5
+        )
+        sighat = self.data_array.real[flag_arr]
+        if len(sighat) > 0:
+            guess = np.copy(sighat)
+            inds = np.where(np.abs(sighat_vector(guess) - sighat) > 1e-10)[0]
+            while len(inds) != 0:
+                guess[inds] -= (
+                    sighat_vector(guess[inds]) - sighat[inds]
+                ) / sighat_vector_prime(guess[inds])
+                inds = np.where(np.abs(sighat_vector(guess) - sighat) > 1e-10)[0]
+            self.data_array.real[flag_arr] = guess
+        return
+
+    def _self_van_vleck_crosses_cheby(
         self,
         corr_inds,
         auto1_inds,
@@ -543,6 +561,7 @@ class MWACorrFITS(UVData):
             self.data_array[not_flag_arr].imag, sig1, sig2, cheby_approx,
         )
         print(f"calculated integral")
+        return
 
     def van_vleck_correction(
         self,
@@ -575,6 +594,12 @@ class MWACorrFITS(UVData):
 
         """
         history_add_string = " Applied Van Vleck correction."
+        # reshape to (nbls, ntimes, nfreqs, npols)
+        self.data_array = np.swapaxes(self.data_array, 0, 1)
+        # combine axes
+        self.data_array = self.data_array.reshape(
+            (self.Nbls, self.Nfreqs * self.Ntimes, self.Npols)
+        )
         # need data array to have 64 bit precision
         # work on this in the future to only change precision where necessary
         if self.data_array.dtype != np.complex128:
@@ -588,8 +613,6 @@ class MWACorrFITS(UVData):
         np.rint(self.data_array, out=self.data_array)
         # take advantage of circular symmetry! divide by two
         self.data_array /= nsamples * 2.0
-        # reshape to (nbls, ntimes, nfreqs, npols)
-        self.data_array = np.swapaxes(self.data_array, 0, 1)
         # get indices for autos
         autos = np.where(
             self.ant_1_array[0 : self.Nbls] == self.ant_2_array[0 : self.Nbls]
@@ -604,10 +627,6 @@ class MWACorrFITS(UVData):
         xy = np.where(self.polarization_array == -7)[0][0]
         yx = np.where(self.polarization_array == -8)[0][0]
         pols = np.array([yy, xx])
-        # combine axes
-        self.data_array = self.data_array.reshape(
-            (self.Nbls, self.Nfreqs * self.Ntimes, self.Npols)
-        )
         # square root autos
         auto_inds = autos[:, np.newaxis]
         self.data_array.real[auto_inds, :, pols] = np.sqrt(
@@ -648,12 +667,15 @@ class MWACorrFITS(UVData):
             self.flag_array = np.logical_or(self.flag_array, small_sig_flags)
         # get unflagged autos
         good_autos = np.delete(autos, flagged_ants)
-        sighat = self.data_array.real[good_autos[:, np.newaxis], :, pols].flatten()
-        # correct autos
-        sigma = van_vleck_autos(sighat)
-        self.data_array.real[good_autos[:, np.newaxis], :, pols] = sigma.reshape(
-            len(good_autos), len(pols), self.Ntimes * self.Nfreqs
+        self._self_van_vleck_autos(
+            good_autos, pols,
         )
+        # sighat = self.data_array.real[good_autos[:, np.newaxis], :, pols].flatten()
+        # correct autos
+        # sigma = van_vleck_autos(sighat)
+        # self.data_array.real[good_autos[:, np.newaxis], :, pols] = sigma.reshape(
+        #     len(good_autos), len(pols), self.Ntimes * self.Nfreqs
+        # )
         # get good crosses
         bad_ant_inds = np.nonzero(
             np.logical_or(
@@ -714,7 +736,7 @@ class MWACorrFITS(UVData):
                 #     ds2,
                 #     cheby_approx,
                 # )
-                self.self_van_vleck_crosses_cheby(
+                self._self_van_vleck_crosses_cheby(
                     crosses,
                     autos[sig1_inds],
                     autos[sig2_inds],
@@ -749,7 +771,7 @@ class MWACorrFITS(UVData):
             #     ds2,
             #     cheby_approx,
             # )
-            self.self_van_vleck_crosses_cheby(
+            self._self_van_vleck_crosses_cheby(
                 good_autos,
                 good_autos,
                 good_autos,
