@@ -84,7 +84,7 @@ def sighat_vector_prime(x):
         / (np.sqrt(2 * np.pi) * (x ** 2))
     )
     sighat_prime = z.sum(axis=0)
-    sighat_prime = sighat_prime / sighat_vector(x)
+    sighat_prime /= sighat_vector(x)
     return sighat_prime
 
 
@@ -163,10 +163,9 @@ def van_vleck_autos(sighat_arr):
         guess = np.copy(sighat)
         inds = np.where(np.abs(sighat_vector(guess) - sighat) > 1e-10)[0]
         while len(inds) != 0:
-            guess[inds] = guess[inds] - (
-                (sighat_vector(guess[inds]) - sighat[inds])
-                / sighat_vector_prime(guess[inds])
-            )
+            guess[inds] -= (
+                sighat_vector(guess[inds]) - sighat[inds]
+            ) / sighat_vector_prime(guess[inds])
             inds = np.where(np.abs(sighat_vector(guess) - sighat) > 1e-10)[0]
         sighat_arr[cutoff_inds] = guess
 
@@ -212,13 +211,11 @@ def van_vleck_crosses_int(k_arr, sig1_arr, sig2_arr, cheby_approx):
         sig2 = sig2_arr[nonzero_inds]
         x0 = khat / (sig1 * sig2)
         corr = corrcorrect_simps(x0, sig1, sig2) - khat
-        x0 = x0 - (corr / corrcorrect_vect_prime(x0, sig1, sig2))
+        x0 -= corr / corrcorrect_vect_prime(x0, sig1, sig2)
         inds = np.where(np.abs(corr) > 1e-8)[0]
         while len(inds) != 0:
             corr = corrcorrect_simps(x0[inds], sig1[inds], sig2[inds]) - khat[inds]
-            x0[inds] = x0[inds] - (
-                corr / corrcorrect_vect_prime(x0[inds], sig1[inds], sig2[inds])
-            )
+            x0[inds] -= corr / corrcorrect_vect_prime(x0[inds], sig1[inds], sig2[inds])
             inds2 = np.where(np.abs(corr) > 1e-8)[0]
             inds = inds[inds2]
         k_arr[nonzero_inds] = x0 * sig1 * sig2
@@ -282,17 +279,21 @@ def van_vleck_crosses_cheby(
 
     """
     kap = np.array([khat[broad_inds].real, khat[broad_inds].imag])
+    print(f"calculated kap")
     _corr_fits.van_vleck_cheby(
         kap, rho_coeff, sv_inds_right1, sv_inds_right2, ds1, ds2,
     )
+    print(f"ran cython")
     khat[broad_inds] = (kap[0, :] + 1j * kap[1, :]) * (
         sig1[broad_inds] * sig2[broad_inds]
     )
+    print(f"assigned khat")
     khat[~broad_inds] = van_vleck_crosses_int(
         khat.real[~broad_inds], sig1[~broad_inds], sig2[~broad_inds], cheby_approx
     ) + 1j * van_vleck_crosses_int(
         khat.imag[~broad_inds], sig1[~broad_inds], sig2[~broad_inds], cheby_approx
     )
+    print(f"calculated integral")
 
     return khat
 
@@ -479,6 +480,69 @@ class MWACorrFITS(UVData):
                 self.flag_array[time_ind, :, file_nums_to_index[file_num], :] = False
         return
 
+    def self_van_vleck_crosses_cheby(
+        self,
+        corr_inds,
+        autos,
+        sig1_inds,
+        sig2_inds,
+        corr_pol,
+        auto_pols,
+        in_inds,
+        rho_coeff,
+        sv_inds_right,
+        ds,
+        cheby_approx,
+    ):
+        """
+        Compute a chebyshev approximation of corrcorrect_simps.
+
+        Uses a bilinear interpolation to find chebyshev coefficients. Assumes distance
+        between points of interpolation grid is 0.01. If sig1 or sig2 falls outside
+        the interpolation grid, the corresponding values are corrected using
+        van_vleck_crosses_int.
+
+        For an explanation of the Van Vleck corrections used and their implementation
+        in this code, see the memos at
+        https://github.com/EoRImaging/Memos/blob/master/PDFs/007_Van_Vleck_A.pdf and
+        https://github.com/EoRImaging/Memos/blob/master/PDFs/008_Van_Vleck_B.pdf
+
+        """
+        (pol1, pol2) = auto_pols[1]
+        (sig1_pol, sig2_pol) = auto_pols[0]
+        # broadcast in_inds
+        broad_inds = np.logical_and(
+            in_inds[sig1_inds, pol1, :], in_inds[sig2_inds, pol2, :],
+        )
+        # broadcast indices and distances for bilinear interpolation
+        sv_inds_right1 = sv_inds_right[sig1_inds, pol1, :][broad_inds]
+        sv_inds_right2 = sv_inds_right[sig2_inds, pol2, :][broad_inds]
+        ds1 = ds[sig1_inds, pol1, :][broad_inds]
+        ds2 = ds[sig2_inds, pol2, :][broad_inds]
+        flag_arr = np.full(self.data_array.shape, False)
+        not_flag_arr = np.full(self.data_array.shape, False)
+        flag_arr[corr_inds, :, corr_pol] = broad_inds
+        not_flag_arr[corr_inds, :, corr_pol] = ~broad_inds
+        kap = np.array([self.data_array[flag_arr].real, self.data_array[flag_arr].imag])
+        print(f"calculated kap")
+        _corr_fits.van_vleck_cheby(
+            kap, rho_coeff, sv_inds_right1, sv_inds_right2, ds1, ds2,
+        )
+        kap *= self.data_array[autos[sig1_inds], :, sig1_pol][broad_inds]
+        kap *= self.data_array[autos[sig2_inds], :, sig2_pol][broad_inds]
+        print(f"ran cython")
+        self.data_array[flag_arr] = 1j * kap[1, :]
+        self.data_array[flag_arr] += kap[0, :]
+        print(f"assigned khat")
+        sig1 = self.data_array[autos[sig1_inds], :, sig1_pol][~broad_inds].real
+        sig2 = self.data_array[autos[sig2_inds], :, sig2_pol][~broad_inds].real
+        self.data_array[not_flag_arr] = van_vleck_crosses_int(
+            self.data_array[not_flag_arr].real, sig1, sig2, cheby_approx,
+        ) + 1j * van_vleck_crosses_int(
+            self.data_array[not_flag_arr].imag, sig1, sig2, cheby_approx,
+        )
+        print(f"calculated integral")
+
     def van_vleck_correction(
         self,
         flagged_ants,
@@ -624,27 +688,42 @@ class MWACorrFITS(UVData):
                 xx: [(xx, xx), (1, 1)],
             }
             for i in [xx, yy, xy, yx]:
-                (pol1, pol2) = pol_dict[i][1]
-                (sig1_pol, sig2_pol) = pol_dict[i][0]
+                # (pol1, pol2) = pol_dict[i][1]
+                # (sig1_pol, sig2_pol) = pol_dict[i][0]
                 # broadcast in_inds
-                broad_inds = np.logical_and(
-                    in_inds[sig1_inds, pol1, :], in_inds[sig2_inds, pol2, :],
-                )
+                # broad_inds = np.logical_and(
+                #     in_inds[sig1_inds, pol1, :],
+                #     in_inds[sig2_inds, pol2, :],
+                # )
                 # broadcast indices and distances for bilinear interpolation
-                sv_inds_right1 = sv_inds_right[sig1_inds, pol1, :][broad_inds]
-                sv_inds_right2 = sv_inds_right[sig2_inds, pol2, :][broad_inds]
-                ds1 = ds[sig1_inds, pol1, :][broad_inds]
-                ds2 = ds[sig2_inds, pol2, :][broad_inds]
-                self.data_array[crosses, :, i] = van_vleck_crosses_cheby(
-                    self.data_array[crosses, :, i],
-                    self.data_array.real[autos[sig1_inds], :, sig1_pol],
-                    self.data_array.real[autos[sig2_inds], :, sig2_pol],
-                    broad_inds,
+                # sv_inds_right1 = sv_inds_right[sig1_inds, pol1, :][broad_inds]
+                # sv_inds_right2 = sv_inds_right[sig2_inds, pol2, :][broad_inds]
+                # ds1 = ds[sig1_inds, pol1, :][broad_inds]
+                # ds2 = ds[sig2_inds, pol2, :][broad_inds]
+                print(f"correcting crosses")
+                # self.data_array[crosses, :, i] = van_vleck_crosses_cheby(
+                #     self.data_array[crosses, :, i],
+                #     self.data_array.real[autos[sig1_inds], :, sig1_pol],
+                #     self.data_array.real[autos[sig2_inds], :, sig2_pol],
+                #     broad_inds,
+                #     rho_coeff,
+                #     sv_inds_right1,
+                #     sv_inds_right2,
+                #     ds1,
+                #     ds2,
+                #     cheby_approx,
+                # )
+                self.self_van_vleck_crosses_cheby(
+                    crosses,
+                    autos,
+                    sig1_inds,
+                    sig2_inds,
+                    i,
+                    pol_dict[i],
+                    in_inds,
                     rho_coeff,
-                    sv_inds_right1,
-                    sv_inds_right2,
-                    ds1,
-                    ds2,
+                    sv_inds_right,
+                    ds,
                     cheby_approx,
                 )
             # correct yx autos
@@ -1303,6 +1382,7 @@ class MWACorrFITS(UVData):
 
             # van vleck correction
             if correct_van_vleck:
+                print(f"correcting van vleck")
                 flagged_ants = self.van_vleck_correction(
                     flagged_ants,
                     cheby_approx=cheby_approx,
