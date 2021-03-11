@@ -483,7 +483,8 @@ class MWACorrFITS(UVData):
     def self_van_vleck_crosses_cheby(
         self,
         corr_inds,
-        autos,
+        auto1_inds,
+        auto2_inds,
         sig1_inds,
         sig2_inds,
         corr_pol,
@@ -528,14 +529,14 @@ class MWACorrFITS(UVData):
         _corr_fits.van_vleck_cheby(
             kap, rho_coeff, sv_inds_right1, sv_inds_right2, ds1, ds2,
         )
-        kap *= self.data_array[autos[sig1_inds], :, sig1_pol][broad_inds]
-        kap *= self.data_array[autos[sig2_inds], :, sig2_pol][broad_inds]
+        kap *= self.data_array[auto1_inds, :, sig1_pol][broad_inds].real
+        kap *= self.data_array[auto2_inds, :, sig2_pol][broad_inds].real
         print(f"ran cython")
         self.data_array[flag_arr] = 1j * kap[1, :]
         self.data_array[flag_arr] += kap[0, :]
         print(f"assigned khat")
-        sig1 = self.data_array[autos[sig1_inds], :, sig1_pol][~broad_inds].real
-        sig2 = self.data_array[autos[sig2_inds], :, sig2_pol][~broad_inds].real
+        sig1 = self.data_array[auto1_inds, :, sig1_pol][~broad_inds].real
+        sig2 = self.data_array[auto2_inds, :, sig2_pol][~broad_inds].real
         self.data_array[not_flag_arr] = van_vleck_crosses_int(
             self.data_array[not_flag_arr].real, sig1, sig2, cheby_approx,
         ) + 1j * van_vleck_crosses_int(
@@ -715,7 +716,8 @@ class MWACorrFITS(UVData):
                 # )
                 self.self_van_vleck_crosses_cheby(
                     crosses,
-                    autos,
+                    autos[sig1_inds],
+                    autos[sig2_inds],
                     sig1_inds,
                     sig2_inds,
                     i,
@@ -728,23 +730,37 @@ class MWACorrFITS(UVData):
                 )
             # correct yx autos
             sig_inds = self.ant_1_array[good_autos]
-            broad_inds = np.logical_and(
-                in_inds[sig_inds, 0, :], in_inds[sig_inds, 1, :]
-            )
-            sv_inds_right1 = sv_inds_right[sig_inds, 0, :][broad_inds]
-            sv_inds_right2 = sv_inds_right[sig_inds, 1, :][broad_inds]
-            ds1 = ds[sig_inds, 0, :][broad_inds]
-            ds2 = ds[sig_inds, 1, :][broad_inds]
-            self.data_array[good_autos, :, yx] = van_vleck_crosses_cheby(
-                self.data_array[good_autos, :, yx],
-                self.data_array.real[good_autos, :, yy],
-                self.data_array.real[good_autos, :, xx],
-                broad_inds,
+            # broad_inds = np.logical_and(
+            #     in_inds[sig_inds, 0, :], in_inds[sig_inds, 1, :]
+            # )
+            # sv_inds_right1 = sv_inds_right[sig_inds, 0, :][broad_inds]
+            # sv_inds_right2 = sv_inds_right[sig_inds, 1, :][broad_inds]
+            # ds1 = ds[sig_inds, 0, :][broad_inds]
+            # ds2 = ds[sig_inds, 1, :][broad_inds]
+            # self.data_array[good_autos, :, yx] = van_vleck_crosses_cheby(
+            #     self.data_array[good_autos, :, yx],
+            #     self.data_array.real[good_autos, :, yy],
+            #     self.data_array.real[good_autos, :, xx],
+            #     broad_inds,
+            #     rho_coeff,
+            #     sv_inds_right1,
+            #     sv_inds_right2,
+            #     ds1,
+            #     ds2,
+            #     cheby_approx,
+            # )
+            self.self_van_vleck_crosses_cheby(
+                good_autos,
+                good_autos,
+                good_autos,
+                sig_inds,
+                sig_inds,
+                yx,
+                pol_dict[yx],
+                in_inds,
                 rho_coeff,
-                sv_inds_right1,
-                sv_inds_right2,
-                ds1,
-                ds2,
+                sv_inds_right,
+                ds,
                 cheby_approx,
             )
             # add back in frequency axis
