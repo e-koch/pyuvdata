@@ -97,7 +97,7 @@ extensions = [corr_fits_extension, utils_extension]
 if not is_platform_windows():
     extensions.append(miriad_extension)
 
-casa_reqs = ["python-casacore>=2.2.0"]
+casa_reqs = ["python-casacore>=3.1.0"]
 healpix_reqs = ["astropy_healpix"]
 cst_reqs = ["pyyaml"]
 test_reqs = (

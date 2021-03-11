@@ -149,7 +149,7 @@ Required:
 
 Optional:
 
-* python-casacore >= 2.2.0 (for working with CASA measurement sets)
+* python-casacore >= 3.1.0 (for working with CASA measurement sets)
 * astropy-healpix (for working with beams in HEALPix formats)
 * pyyaml (for working with settings files for CST beam files)
 

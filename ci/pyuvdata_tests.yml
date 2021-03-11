@@ -7,10 +7,10 @@ dependencies:
   - h5py
   - astropy-healpix
   - numpy
-  - python-casacore
+  - python-casacore>=3.1.0
   - pyyaml
   - scipy
-  - six  # added for now because sometimes an old python-casacore build is used that omits this dependency
+  - six  # added for now because sometimes an old python-casacore build (before 3.3.1) is used that omits this dependency
   - coverage
   - pytest>=6.2.0
   - pytest-cov
