@@ -3900,7 +3900,7 @@ class UVData(UVBase):
             select_mask, or if select mask isn't the right length.
         """
         # If we only have metadata, then we have no work to do. W00t!
-        if (not self.metadata_only) or (self.data_array is None):
+        if self.metadata_only or (self.data_array is None):
             return
 
         # Promote everything to float64 ndarrays if they aren't already
@@ -3941,17 +3941,27 @@ class UVData(UVBase):
         if select_mask is None or np.all(select_mask):
             # If all the w values are changing, it turns out to be twice as fast
             # to ditch any sort of selection mask and just do the full multiply.
-            self.data_array *= np.exp(
-                (-1j * 2 * np.pi) * delta_w_lambda[:, None, :, None]
-            )
+            if self.future_array_shapes:
+                self.data_array *= np.exp(
+                    (-1j * 2 * np.pi) * delta_w_lambda[:, :, None]
+                )
+            else:
+                self.data_array *= np.exp(
+                    (-1j * 2 * np.pi) * delta_w_lambda[:, None, :, None]
+                )
         elif np.any(select_mask):
             # In the case we are _not_ doing all baselines, use a selection mask to
             # only update the values we need. In the worse case, it slows down the
             # processing by ~2x, but it can save a lot on time and memory if only
             # needing to update a select number of baselines.
-            self.data_array[select_mask] *= np.exp(
-                (-1j * 2 * np.pi) * delta_w_lambda[:, None, :, None]
-            )
+            if self.future_array_shapes:
+                self.data_array[select_mask] *= np.exp(
+                    (-1j * 2 * np.pi) * delta_w_lambda[:, :, None]
+                )
+            else:
+                self.data_array[select_mask] *= np.exp(
+                    (-1j * 2 * np.pi) * delta_w_lambda[:, None, :, None]
+                )
 
     def unphase_to_drift(
         self, phase_frame=None, use_ant_pos=True, use_old_proj=False,
@@ -4779,6 +4789,9 @@ class UVData(UVBase):
         self.phase_center_ra = icrs_coord.ra.radian
         self.phase_center_dec = icrs_coord.dec.radian
         self.phase_center_epoch = 2000.0
+        self.phase_center_app_ra = None
+        self.phase_center_app_dec = None
+        self.phase_center_frame_pa = None
 
         if phase_frame == "icrs":
             frame_phase_center = icrs_coord
@@ -9355,6 +9368,7 @@ class UVData(UVBase):
         strict_uvw_antpos_check=False,
         calc_lst=True,
         fix_old_proj=False,
+        fix_use_ant_pos=True,
     ):
         """
         Read in data from a miriad file.
@@ -9429,6 +9443,15 @@ class UVData(UVBase):
             Recalculate the LST values that are present within the file, useful in
             cases where the "online" calculate values have precision or value errors.
             Default is True.
+        fix_old_proj : bool
+            Applies a fix to uvw-coordinates and phasing, assuming that the old `phase`
+            method was used prior to writing the data, which had errors of the order of
+            one part in 1e4 - 1e5. See the phasing memo for more details. Default is
+            False.
+        fix_use_ant_pos : bool
+            If setting `fix_old_proj` to True, use the antenna positions to derived the
+            correct uvw-coordinates rather than using the baseline vectors. Default is
+            True.
 
         Raises
         ------
@@ -9470,6 +9493,7 @@ class UVData(UVBase):
             strict_uvw_antpos_check=strict_uvw_antpos_check,
             calc_lst=calc_lst,
             fix_old_proj=fix_old_proj,
+            fix_use_ant_pos=fix_use_ant_pos,
         )
         self._convert_from_filetype(miriad_obj)
         del miriad_obj
@@ -9762,6 +9786,7 @@ class UVData(UVBase):
         run_check_acceptability=True,
         strict_uvw_antpos_check=False,
         fix_old_proj=None,
+        fix_use_ant_pos=True,
     ):
         """
         Read in header, metadata and data from a single uvfits file.
@@ -9865,6 +9890,15 @@ class UVData(UVBase):
         strict_uvw_antpos_check : bool
             Option to raise an error rather than a warning if the check that
             uvws match antenna positions does not pass.
+        fix_old_proj : bool
+            Applies a fix to uvw-coordinates and phasing, assuming that the old `phase`
+            method was used prior to writing the data, which had errors of the order of
+            one part in 1e4 - 1e5. See the phasing memo for more details. Default is
+            False.
+        fix_use_ant_pos : bool
+            If setting `fix_old_proj` to True, use the antenna positions to derived the
+            correct uvw-coordinates rather than using the baseline vectors. Default is
+            True.
 
         Raises
         ------
@@ -9911,6 +9945,7 @@ class UVData(UVBase):
             run_check_acceptability=run_check_acceptability,
             strict_uvw_antpos_check=strict_uvw_antpos_check,
             fix_old_proj=fix_old_proj,
+            fix_use_ant_pos=fix_use_ant_pos,
         )
         self._convert_from_filetype(uvfits_obj)
         del uvfits_obj
@@ -9941,6 +9976,7 @@ class UVData(UVBase):
         run_check_acceptability=True,
         strict_uvw_antpos_check=False,
         fix_old_proj=None,
+        fix_use_ant_pos=True,
     ):
         """
         Read a UVH5 file.
@@ -10054,6 +10090,17 @@ class UVData(UVBase):
         strict_uvw_antpos_check : bool
             Option to raise an error rather than a warning if the check that
             uvws match antenna positions does not pass.
+        fix_old_proj : bool
+            Applies a fix to uvw-coordinates and phasing, assuming that the old `phase`
+            method was used prior to writing the data, which had errors of the order of
+            one part in 1e4 - 1e5. See the phasing memo for more details. Default is
+            to apply the correction if the attributes `phase_center_app_ra` and
+            `phase_center_app_dec` are missing (as they were introduced alongside the
+            new phasing method).
+        fix_use_ant_pos : bool
+            If setting `fix_old_proj` to True, use the antenna positions to derived the
+            correct uvw-coordinates rather than using the baseline vectors. Default is
+            True.
 
         Raises
         ------
@@ -10100,6 +10147,7 @@ class UVData(UVBase):
             run_check_acceptability=run_check_acceptability,
             strict_uvw_antpos_check=strict_uvw_antpos_check,
             fix_old_proj=fix_old_proj,
+            fix_use_ant_pos=fix_use_ant_pos,
         )
         self._convert_from_filetype(uvh5_obj)
         del uvh5_obj
@@ -10165,6 +10213,7 @@ class UVData(UVBase):
         lst_range=None,
         calc_lst=True,
         fix_old_proj=None,
+        fix_use_ant_pos=True,
     ):
         """
         Read a generic file into a UVData object.
@@ -10417,6 +10466,17 @@ class UVData(UVBase):
             Recalculate the LST values that are present within the file, useful in
             cases where the "online" calculate values have precision or value errors.
             Default is True.
+        fix_old_proj : bool
+            Applies a fix to uvw-coordinates and phasing, assuming that the old `phase`
+            method was used prior to writing the data, which had errors of the order of
+            one part in 1e4 - 1e5. See the phasing memo for more details. Default is
+            False, unless reading a UVH5 file that is missing the `phase_center_app_ra`
+            and `phase_center_app_dec` attributes (as these were introduced at the same
+            time as the new `phase` method), in which case the default is True.
+        fix_use_ant_pos : bool
+            If setting `fix_old_proj` to True, use the antenna positions to derived the
+            correct uvw-coordinates rather than using the baseline vectors. Default is
+            True.
 
         Raises
         ------
@@ -10548,6 +10608,7 @@ class UVData(UVBase):
                         pseudo_cont=pseudo_cont,
                         calc_lst=calc_lst,
                         fix_old_proj=fix_old_proj,
+                        fix_use_ant_pos=fix_use_ant_pos,
                     )
                     unread = False
                 except KeyError as err:
@@ -10621,6 +10682,7 @@ class UVData(UVBase):
                             pseudo_cont=pseudo_cont,
                             calc_lst=calc_lst,
                             fix_old_proj=fix_old_proj,
+                            fix_use_ant_pos=fix_use_ant_pos,
                         )
                         uv_list.append(uv2)
                     except KeyError as err:
@@ -10805,6 +10867,7 @@ class UVData(UVBase):
                     run_check_acceptability=run_check_acceptability,
                     strict_uvw_antpos_check=strict_uvw_antpos_check,
                     fix_old_proj=fix_old_proj,
+                    fix_use_ant_pos=fix_use_ant_pos,
                 )
 
             elif file_type == "mir":
@@ -10836,6 +10899,7 @@ class UVData(UVBase):
                     strict_uvw_antpos_check=strict_uvw_antpos_check,
                     calc_lst=calc_lst,
                     fix_old_proj=fix_old_proj,
+                    fix_use_ant_pos=fix_use_ant_pos,
                 )
 
             elif file_type == "mwa_corr_fits":
@@ -10915,6 +10979,7 @@ class UVData(UVBase):
                     run_check_acceptability=run_check_acceptability,
                     strict_uvw_antpos_check=strict_uvw_antpos_check,
                     fix_old_proj=fix_old_proj,
+                    fix_use_ant_pos=fix_use_ant_pos,
                 )
                 select = False
 
