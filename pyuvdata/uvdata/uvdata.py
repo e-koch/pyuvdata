@@ -4637,6 +4637,12 @@ class UVData(UVBase):
                     [this.flag_array] + [obj.flag_array for obj in other], axis=0,
                 )
 
+        # update filename attribute
+        for obj in other:
+            this.filename = uvutils._combine_filenames(this.filename, obj.filename)
+        if this.filename is not None:
+            this._filename.form = len(this.filename)
+
         # Check final object is self-consistent
         if run_check:
             this.check(
