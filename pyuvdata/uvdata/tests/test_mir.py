@@ -21,7 +21,7 @@ from ...uvdata.mir import mir_parser
 
 @pytest.fixture
 def mir_data_object():
-    testfile = os.path.join(DATA_PATH, "sma_test.mir")
+    testfile = os.path.join(DATA_PATH, "sma_test.mir/")
     mir_data = mir_parser.MirParser(
         testfile, load_vis=True, load_raw=True, load_auto=True,
     )
