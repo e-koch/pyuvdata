@@ -1552,6 +1552,10 @@ class UVH5(UVData):
         else:
             replace_nsamples = False
 
+        # also ignore filename attribute
+        uvd_file.filename = self.filename
+        uvd_file._filename.form = self._filename.form
+
         if self != uvd_file:
             raise AssertionError(
                 "The object metadata in memory and metadata on disk are different"
