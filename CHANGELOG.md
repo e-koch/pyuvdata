@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added `filename` attribute for UVData objects.
 - Added option to select based on LST or an LST range in UVData objects.
 - Added `get_lsts` method on UVData objects for retrieving LST corresponding to data.
 
